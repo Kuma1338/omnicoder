@@ -7,6 +7,7 @@ import type { ProviderConfig } from "../../core/providers/types";
 import type { Message } from "../../core/providers/types";
 import { invoke } from "@tauri-apps/api/core";
 import { homeDir, desktopDir } from "@tauri-apps/api/path";
+import { trackUsage } from "./StatsPage";
 
 // ---- Types ----
 
@@ -307,6 +308,8 @@ export default function ChatPage() {
           newAssistantParts.push({ type: "tool_result", id: event.id, name: event.name, result: event.result, isError: event.isError });
           appendToLast(() => [...newAssistantParts]);
         } else if (event.type === "done") {
+          // Track token usage for stats
+          trackUsage(event.usage.input_tokens, event.usage.output_tokens);
           // Preserve full message history (including tool_use/tool_result blocks) for multi-turn
           if (event.messages) {
             historyRef.current = event.messages;

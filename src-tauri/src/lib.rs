@@ -14,6 +14,9 @@ pub fn run() {
             commands::run_command,
             commands::glob_files,
             commands::grep_files,
+            commands::mcp_connect,
+            commands::mcp_call_tool,
+            commands::mcp_read_resource,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

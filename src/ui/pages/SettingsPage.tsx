@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Plus, Trash2, CheckCircle, XCircle, Loader2, ChevronDown, ChevronUp, Copy } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { BUILT_IN_PRESETS } from "../../core/providers/registry";
@@ -420,9 +420,20 @@ function ProviderCard({
 function PresetPicker({ onSelect }: { onSelect: (preset: ProviderPreset) => void }) {
   const [open, setOpen] = useState(false);
   const categories = [...new Set(BUILT_IN_PRESETS.map((p) => p.category))];
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
 
   return (
-    <div className="relative">
+    <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium"

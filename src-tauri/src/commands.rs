@@ -151,3 +151,59 @@ pub fn grep_files(
 
     Ok(results)
 }
+
+// --- MCP stub commands (full implementation in v0.2) ---
+
+#[derive(Serialize)]
+pub struct McpConnectResult {
+    pub tools: Vec<McpToolInfo>,
+    pub resources: Vec<McpResourceInfo>,
+}
+
+#[derive(Serialize)]
+pub struct McpToolInfo {
+    pub name: String,
+    pub description: String,
+    pub input_schema: serde_json::Value,
+}
+
+#[derive(Serialize)]
+pub struct McpResourceInfo {
+    pub uri: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub mime_type: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct McpToolResult {
+    pub content: String,
+    pub is_error: bool,
+}
+
+#[tauri::command]
+pub fn mcp_connect(
+    _command: String,
+    _args: Vec<String>,
+    _env: std::collections::HashMap<String, String>,
+) -> Result<McpConnectResult, String> {
+    // Stub: full stdio transport implementation in v0.2
+    Err("MCP server connections will be available in v0.2. Configure MCP servers in .mcp.json for future use.".to_string())
+}
+
+#[tauri::command]
+pub fn mcp_call_tool(
+    _server_id: String,
+    _tool_name: String,
+    _input: serde_json::Value,
+) -> Result<McpToolResult, String> {
+    Err("MCP tool calls will be available in v0.2.".to_string())
+}
+
+#[tauri::command]
+pub fn mcp_read_resource(
+    _server_id: String,
+    _uri: String,
+) -> Result<String, String> {
+    Err("MCP resource reading will be available in v0.2.".to_string())
+}
