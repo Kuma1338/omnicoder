@@ -87,9 +87,9 @@ export const BUILT_IN_PRESETS: ProviderPreset[] = [
     name: 'OpenAI (Official)',
     type: 'openai',
     baseUrl: 'https://api.openai.com',
-    defaultModel: 'gpt-4o',
-    description: 'OpenAI official API',
-    models: ['gpt-4o', 'gpt-4o-mini', 'o3-mini', 'o3', 'gpt-4-turbo', 'gpt-3.5-turbo'],
+    defaultModel: 'codex-mini-latest',
+    description: 'OpenAI official API (Codex, GPT-4o, o3)',
+    models: ['codex-mini-latest', 'gpt-4o', 'gpt-4o-mini', 'o3-mini', 'o3', 'gpt-4-turbo'],
     category: 'official',
   },
   {
