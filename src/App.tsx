@@ -1,12 +1,14 @@
 import { HashRouter, Routes, Route, NavLink, Navigate } from "react-router-dom";
-import { Settings, MessageSquare, Users, BarChart2, Bot } from "lucide-react";
+import { Settings, MessageSquare, Users, BarChart2, Bot, Code2 } from "lucide-react";
 import SettingsPage from "./ui/pages/SettingsPage";
 import ChatPage from "./ui/pages/ChatPage";
+import CodePage from "./ui/pages/CodePage";
 import AgentSetupPage from "./ui/pages/AgentSetupPage";
 import StatsPage from "./ui/pages/StatsPage";
 
 const navItems = [
   { to: "/chat", icon: MessageSquare, label: "Chat" },
+  { to: "/code", icon: Code2, label: "Code" },
   { to: "/agents", icon: Users, label: "Agents" },
   { to: "/settings", icon: Settings, label: "Settings" },
   { to: "/stats", icon: BarChart2, label: "Stats" },
@@ -58,6 +60,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Navigate to="/chat" replace />} />
             <Route path="/chat" element={<ChatPage />} />
+            <Route path="/code" element={<CodePage />} />
             <Route path="/agents" element={<AgentSetupPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/stats" element={<StatsPage />} />
