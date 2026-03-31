@@ -157,7 +157,7 @@ pub fn grep_files(
 
 use std::sync::Mutex;
 use std::collections::HashMap;
-use std::io::{BufRead, Write as IoWrite};
+use std::io::Write as IoWrite;
 
 #[derive(Serialize)]
 pub struct McpConnectResult {
@@ -209,21 +209,31 @@ fn mcp_jsonrpc_request(child: &mut std::process::Child, method: &str, params: se
     stdin.write_all(request_str.as_bytes()).map_err(|e| e.to_string())?;
     stdin.flush().map_err(|e| e.to_string())?;
 
-    // Read response with Content-Length framing
-    let mut reader = std::io::BufReader::new(stdout);
-    let mut header_line = String::new();
+    // Read response — byte-by-byte header parsing (no BufReader to avoid buffering issues)
     let mut content_length: usize = 0;
+    let mut header_buf = Vec::new();
 
-    // Read headers until empty line
+    // Read headers until \r\n\r\n
     loop {
-        header_line.clear();
-        reader.read_line(&mut header_line).map_err(|e| e.to_string())?;
-        let trimmed = header_line.trim();
-        if trimmed.is_empty() {
+        let mut byte = [0u8; 1];
+        std::io::Read::read_exact(stdout, &mut byte).map_err(|e| e.to_string())?;
+        header_buf.push(byte[0]);
+
+        // Check for \r\n\r\n at the end
+        if header_buf.len() >= 4 && &header_buf[header_buf.len()-4..] == b"\r\n\r\n" {
             break;
         }
-        if let Some(len_str) = trimmed.strip_prefix("Content-Length: ") {
-            content_length = len_str.parse().map_err(|e: std::num::ParseIntError| e.to_string())?;
+        // Safety: max header size 4KB
+        if header_buf.len() > 4096 {
+            return Err("MCP response header too large".to_string());
+        }
+    }
+
+    // Parse Content-Length from header
+    let header_str = String::from_utf8_lossy(&header_buf);
+    for line in header_str.split("\r\n") {
+        if let Some(len_str) = line.strip_prefix("Content-Length: ") {
+            content_length = len_str.trim().parse().map_err(|e: std::num::ParseIntError| e.to_string())?;
         }
     }
 
@@ -231,8 +241,9 @@ fn mcp_jsonrpc_request(child: &mut std::process::Child, method: &str, params: se
         return Err("No Content-Length in MCP response".to_string());
     }
 
+    // Read exact body bytes
     let mut body = vec![0u8; content_length];
-    std::io::Read::read_exact(&mut reader, &mut body).map_err(|e| e.to_string())?;
+    std::io::Read::read_exact(stdout, &mut body).map_err(|e| e.to_string())?;
 
     let response: serde_json::Value = serde_json::from_slice(&body).map_err(|e| e.to_string())?;
 

@@ -1,6 +1,6 @@
 # OmniCoder
 
-**Multi-AI Coding Agent Orchestrator** — Combine Claude, GPT-4o, Gemini, Ollama, and more into a unified coding team.
+**Multi-AI Coding Agent Orchestrator** — Combine Claude, Codex, Gemini, Ollama, and more into a unified coding team.
 
 <p align="center">
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue" />
