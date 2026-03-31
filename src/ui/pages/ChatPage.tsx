@@ -3,6 +3,7 @@ import { Send, Square, RotateCcw, ChevronDown, Bot, User, Wrench, Brain, AlertCi
 import { ProviderRegistry } from "../../core/providers/registry";
 import { getAllProviders, storedToConfig } from "../../core/config/database";
 import { runAgentTurn } from "../../core/orchestrator/single-mode";
+import { runMultiAgentTurn } from "../../core/orchestrator/multi-mode";
 import type { ProviderConfig } from "../../core/providers/types";
 import type { Message } from "../../core/providers/types";
 import { invoke } from "@tauri-apps/api/core";
@@ -304,40 +305,82 @@ export default function ChatPage() {
     setAbortController(ac);
 
     try {
-      const gen = runAgentTurn(historyRef.current, {
-        provider,
-        workingDirectory: workingDir,
-        agentId: "main",
-        agentRole: "coder",
-        autoApproveTools: true,
-      });
+      // Choose single or multi-agent mode
+      const teamConfigRaw = localStorage.getItem("omnicoder_team");
+      const isMulti = mode === "multi" && teamConfigRaw;
+
+      let gen: AsyncGenerator<any>;
+      if (isMulti) {
+        // Multi-Agent: parse team config, build providers for each agent
+        const teamConfig = JSON.parse(teamConfigRaw!) as Array<{ id: string; name: string; role: string; providerId: string; systemPrompt: string; provider?: ProviderConfig }>;
+        const director = teamConfig.find((a) => a.role === "director");
+        const workers = teamConfig.filter((a) => a.role !== "director");
+
+        if (director?.provider && workers.length > 0) {
+          const directorProvider = registry.register({ ...director.provider, id: `dir-${Date.now()}` });
+          const workerAgents = workers.map((w, i) => {
+            const wp = w.provider ? registry.register({ ...w.provider, id: `worker-${i}-${Date.now()}` }) : provider;
+            return { id: w.id, name: w.name, role: w.role as any, providerId: w.providerId, allowedTools: [] as string[], permissions: { canEditFiles: w.role === 'coder', canRunBash: w.role === 'coder' || w.role === 'tester', canAccessNetwork: true, canSpawnSubAgents: false }, provider: wp };
+          });
+
+          gen = runMultiAgentTurn(userText, {
+            director: { ...director, id: director.id, name: director.name, role: 'director' as any, providerId: director.providerId, allowedTools: [], permissions: { canEditFiles: false, canRunBash: false, canAccessNetwork: true, canSpawnSubAgents: true }, provider: directorProvider },
+            workers: workerAgents,
+            workingDirectory: workingDir,
+            autoApproveTools: true,
+          });
+        } else {
+          // Fallback to single agent if team incomplete
+          gen = runAgentTurn(historyRef.current, { provider, workingDirectory: workingDir, agentId: "main", agentRole: "coder", autoApproveTools: true });
+        }
+      } else {
+        gen = runAgentTurn(historyRef.current, {
+          provider,
+          workingDirectory: workingDir,
+          agentId: "main",
+          agentRole: "coder",
+          autoApproveTools: true,
+        });
+      }
 
       const newAssistantParts: AssistantPart[] = [];
 
       for await (const event of gen) {
         if (ac.signal.aborted) break;
 
-        if (event.type === "text") {
-          // Accumulate text parts
+        // Handle both single-agent events (text/thinking/tool_*) and multi-agent events (agent_text/agent_tool_*)
+        const eventText = event.type === "text" ? event.text : event.type === "agent_text" ? `**[${event.agentName}]** ${event.text}` : null;
+        const eventThinking = event.type === "thinking" ? event.thinking : event.type === "agent_thinking" ? event.thinking : null;
+
+        if (eventText !== null) {
           const lastPart = newAssistantParts[newAssistantParts.length - 1];
           if (lastPart?.type === "text") {
-            lastPart.text += event.text;
+            lastPart.text += eventText;
           } else {
-            newAssistantParts.push({ type: "text", text: event.text });
+            newAssistantParts.push({ type: "text", text: eventText });
           }
           appendToLast(() => [...newAssistantParts]);
-        } else if (event.type === "thinking") {
-          newAssistantParts.push({ type: "thinking", thinking: event.thinking });
+        } else if (eventThinking !== null) {
+          newAssistantParts.push({ type: "thinking", thinking: eventThinking });
           appendToLast(() => [...newAssistantParts]);
-        } else if (event.type === "tool_start") {
-          newAssistantParts.push({ type: "tool_start", id: event.id, name: event.name, input: event.input });
+        } else if (event.type === "tool_start" || event.type === "agent_tool_start") {
+          const name = event.type === "tool_start" ? event.name : event.toolName;
+          const id = event.type === "tool_start" ? event.id : event.toolId;
+          newAssistantParts.push({ type: "tool_start", id, name, input: event.input });
           appendToLast(() => [...newAssistantParts]);
-        } else if (event.type === "tool_result") {
-          newAssistantParts.push({ type: "tool_result", id: event.id, name: event.name, result: event.result, isError: event.isError });
+        } else if (event.type === "tool_result" || event.type === "agent_tool_result") {
+          const name = event.type === "tool_result" ? event.name : event.toolName;
+          const id = event.type === "tool_result" ? event.id : event.toolId;
+          const result = event.result;
+          const isError = event.isError;
+          newAssistantParts.push({ type: "tool_result", id, name, result, isError });
           appendToLast(() => [...newAssistantParts]);
         } else if (event.type === "done") {
-          // Track token usage for stats
-          trackUsage(event.usage.input_tokens, event.usage.output_tokens);
+          // Track token usage for stats (handle both single and multi-agent event shapes)
+          const usage = event.usage ?? event.totalTokens ?? { input_tokens: 0, output_tokens: 0 };
+          const inputTok = usage.input_tokens ?? usage.input ?? 0;
+          const outputTok = usage.output_tokens ?? usage.output ?? 0;
+          trackUsage(inputTok, outputTok);
           // Save assistant response to DB
           const assistantText = newAssistantParts
             .filter((p) => p.type === "text")
@@ -359,7 +402,7 @@ export default function ChatPage() {
       setIsRunning(false);
       setAbortController(null);
     }
-  }, [input, isRunning, selectedProvider]);
+  }, [input, isRunning, selectedProvider, workingDir, sessionId, sessionCreated]);
 
   function handleStop() {
     abortController?.abort();
