@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Plus, Trash2, Play, Users, Crown, Code, Eye, TestTube, Search, Cog } from "lucide-react";
 import { getAllProviders, storedToConfig } from "../../core/config/database";
 import { invoke } from "@tauri-apps/api/core";
@@ -142,6 +143,7 @@ function AgentCard({
 // ---- Main Page ----
 
 export default function AgentSetupPage() {
+  const navigate = useNavigate();
   const [providers, setProviders] = useState<ProviderConfig[]>([]);
   const [agents, setAgents] = useState<AgentDraft[]>([
     { id: "director-1", name: "Director", role: "director", providerId: "", systemPrompt: "" },
@@ -215,6 +217,16 @@ export default function AgentSetupPage() {
             className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors disabled:opacity-40"
             style={{ background: "var(--accent)", color: "#fff" }}
             title={!hasDirector ? "需要至少一个 Director" : !allHaveProvider ? "所有 Agent 需要选择 Provider" : ""}
+            onClick={() => {
+              // Save agent team config and navigate to chat in multi-agent mode
+              const teamConfig = agents.map((a) => ({
+                ...a,
+                provider: providers.find((p) => p.id === a.providerId),
+              }));
+              localStorage.setItem("omnicoder_team", JSON.stringify(teamConfig));
+              localStorage.setItem("omnicoder_mode", "multi");
+              navigate("/chat");
+            }}
           >
             <Play size={14} />
             启动团队

@@ -8,6 +8,7 @@ import type { Message } from "../../core/providers/types";
 import { invoke } from "@tauri-apps/api/core";
 import { homeDir, desktopDir } from "@tauri-apps/api/path";
 import { trackUsage } from "./StatsPage";
+import { createSession, saveMessage, updateSessionTokens } from "../../core/config/sessions";
 
 // ---- Types ----
 
@@ -207,6 +208,8 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [isRunning, setIsRunning] = useState(false);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
+  const [sessionId] = useState(() => `session-${Date.now()}`);
+  const [sessionCreated, setSessionCreated] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -261,10 +264,21 @@ export default function ChatPage() {
     setInput("");
     setIsRunning(true);
 
+    // Create session on first message
+    if (!sessionCreated) {
+      try {
+        await createSession(sessionId, userText.slice(0, 50), "single");
+        setSessionCreated(true);
+      } catch { /* DB not ready yet, continue anyway */ }
+    }
+
     // Add user message to UI
     setMessages((m) => [...m, { role: "user", content: userText }]);
     // Add assistant placeholder
     setMessages((m) => [...m, { role: "assistant", parts: [] }]);
+
+    // Save user message to DB
+    saveMessage(sessionId, "main", "user", userText).catch(() => {});
 
     // Update history
     historyRef.current = [...historyRef.current, { role: "user", content: userText }];
@@ -310,6 +324,13 @@ export default function ChatPage() {
         } else if (event.type === "done") {
           // Track token usage for stats
           trackUsage(event.usage.input_tokens, event.usage.output_tokens);
+          // Save assistant response to DB
+          const assistantText = newAssistantParts
+            .filter((p) => p.type === "text")
+            .map((p) => (p as { type: "text"; text: string }).text)
+            .join("");
+          saveMessage(sessionId, "main", "assistant", assistantText, event.usage.output_tokens).catch(() => {});
+          updateSessionTokens(sessionId, event.usage.input_tokens, event.usage.output_tokens, (event.usage.input_tokens * 3 + event.usage.output_tokens * 15) / 1_000_000).catch(() => {});
           // Preserve full message history (including tool_use/tool_result blocks) for multi-turn
           if (event.messages) {
             historyRef.current = event.messages;
