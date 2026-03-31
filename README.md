@@ -15,7 +15,7 @@
 OmniCoder is a desktop application that lets you **orchestrate multiple AI models** working together on coding tasks. Instead of talking to one AI at a time, you can build a team:
 
 - **Claude Opus** as the Director — plans and delegates
-- **OpenAI Codex** as the Coder — writes code and runs commands
+- **OpenAI GPT-5.3-Codex** as the Coder — writes code and runs commands
 - **Gemini** as the Reviewer — checks code quality
 - **Ollama (local)** as the Tester — runs tests without API costs
 
@@ -25,11 +25,11 @@ Each agent has role-based permissions and its own tools. The Director plans, wor
 
 ### Multi-Provider Support
 Configure any number of AI providers with independent settings:
-- **Anthropic** (Claude Opus, Sonnet, Haiku)
-- **OpenAI** (Codex, GPT-4o, o3, GPT-4-turbo)
-- **Google Gemini** (2.5 Pro, 2.5 Flash)
-- **Ollama** (local models — Qwen, Llama, etc.)
-- **Custom** (OpenRouter, Together.ai, DeepSeek, Groq, Mistral, xAI Grok, or any OpenAI-compatible endpoint)
+- **Anthropic** (Claude Opus 4.6, Sonnet 4.6, Haiku 4.5)
+- **OpenAI** (GPT-5.4, GPT-5.3-Codex, GPT-5.4 Mini, o3)
+- **Google Gemini** (3.1 Pro, 3.1 Flash-Lite)
+- **Ollama** (local models — Qwen, Llama, DeepSeek, etc.)
+- **Custom** (OpenRouter, Together.ai, DeepSeek V3, Groq, Mistral Large 3, xAI Grok 4.20, or any OpenAI-compatible endpoint)
 
 Each provider supports:
 - Custom base URLs (for relay/proxy services)
