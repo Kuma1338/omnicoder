@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Plus, Trash2, CheckCircle, XCircle, Loader2, ChevronDown, ChevronUp, Copy } from "lucide-react";
+import { Plus, Trash2, CheckCircle, XCircle, Loader2, ChevronDown, ChevronUp, Copy, Download, Upload } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { BUILT_IN_PRESETS } from "../../core/providers/registry";
 import { ProviderRegistry } from "../../core/providers/registry";
@@ -569,6 +569,53 @@ export default function SettingsPage() {
 
         <div className="flex items-center gap-2">
           <PresetPicker onSelect={addFromPreset} />
+          <button
+            onClick={() => {
+              // Export all providers as JSON (without API keys for safety)
+              const exportData = providers.map(({ apiKey, ...rest }) => rest);
+              const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = "omnicoder-providers.json";
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium"
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+            title="导出配置（不含 API Key）"
+          >
+            <Download size={14} />
+          </button>
+          <button
+            onClick={() => {
+              const input = document.createElement("input");
+              input.type = "file";
+              input.accept = ".json";
+              input.onchange = async (e) => {
+                const file = (e.target as HTMLInputElement).files?.[0];
+                if (!file) return;
+                try {
+                  const text = await file.text();
+                  const imported = JSON.parse(text) as ProviderConfig[];
+                  if (Array.isArray(imported)) {
+                    for (const cfg of imported) {
+                      if (cfg.id && cfg.name && cfg.baseUrl) {
+                        cfg.id = `${cfg.id}-${Date.now()}`;
+                        setProviders((p) => [...p, cfg]);
+                      }
+                    }
+                  }
+                } catch { /* invalid JSON */ }
+              };
+              input.click();
+            }}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium"
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+            title="导入配置"
+          >
+            <Upload size={14} />
+          </button>
           <button
             onClick={addBlank}
             className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors"

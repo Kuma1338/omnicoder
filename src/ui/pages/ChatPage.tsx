@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Square, Settings, ChevronDown, Bot, User, Wrench, Brain, AlertCircle } from "lucide-react";
+import { Send, Square, RotateCcw, ChevronDown, Bot, User, Wrench, Brain, AlertCircle } from "lucide-react";
 import { ProviderRegistry } from "../../core/providers/registry";
 import { getAllProviders, storedToConfig } from "../../core/config/database";
 import { runAgentTurn } from "../../core/orchestrator/single-mode";
@@ -35,17 +35,27 @@ function ProviderSelector({
   onSelect: (p: ProviderConfig) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const dropRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (dropRef.current && !dropRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
 
   if (providers.length === 0) {
     return (
       <span className="text-xs px-3 py-1.5 rounded-md" style={{ color: "var(--text-muted)", background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-        未配置 Provider
+        未配置 Provider — 请先在 Settings 中添加
       </span>
     );
   }
 
   return (
-    <div className="relative">
+    <div className="relative" ref={dropRef}>
       <button
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm"
@@ -214,6 +224,10 @@ export default function ChatPage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [workingDir, setWorkingDir] = useState("C:/");
+  const [mode] = useState<"single" | "multi">(() => {
+    const stored = localStorage.getItem("omnicoder_mode");
+    return stored === "multi" ? "multi" : "single";
+  });
 
   // History for provider calls (Anthropic-format)
   const historyRef = useRef<Message[]>([]);
@@ -367,6 +381,11 @@ export default function ChatPage() {
         style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-secondary)" }}
       >
         <ProviderSelector providers={providers} selected={selectedProvider} onSelect={setSelectedProvider} />
+        {mode === "multi" && (
+          <span className="text-xs px-2 py-1 rounded-full" style={{ background: "rgba(88,166,255,0.15)", color: "var(--accent)" }}>
+            多 Agent 模式
+          </span>
+        )}
         <div className="flex-1" />
         <button
           className="p-1.5 rounded hover:bg-[var(--bg-hover)]"
@@ -374,7 +393,7 @@ export default function ChatPage() {
           onClick={() => { setMessages([]); historyRef.current = []; }}
           style={{ color: "var(--text-muted)" }}
         >
-          <Settings size={14} />
+          <RotateCcw size={14} />
         </button>
       </div>
 
