@@ -152,7 +152,12 @@ pub fn grep_files(
     Ok(results)
 }
 
-// --- MCP stub commands (full implementation in v0.2) ---
+// --- MCP stdio transport ---
+// Spawns child processes, communicates via JSON-RPC over stdin/stdout
+
+use std::sync::Mutex;
+use std::collections::HashMap;
+use std::io::{BufRead, Write as IoWrite};
 
 #[derive(Serialize)]
 pub struct McpConnectResult {
@@ -181,29 +186,189 @@ pub struct McpToolResult {
     pub is_error: bool,
 }
 
+// Hold child process handles for active MCP servers
+static MCP_PROCESSES: std::sync::LazyLock<Mutex<HashMap<String, std::process::Child>>> =
+    std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
+
+fn mcp_jsonrpc_request(child: &mut std::process::Child, method: &str, params: serde_json::Value) -> Result<serde_json::Value, String> {
+    let stdin = child.stdin.as_mut().ok_or("MCP process stdin not available")?;
+    let stdout = child.stdout.as_mut().ok_or("MCP process stdout not available")?;
+
+    let request = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": method,
+        "params": params,
+    });
+
+    let request_str = serde_json::to_string(&request).map_err(|e| e.to_string())?;
+
+    // MCP uses Content-Length header framing
+    let header = format!("Content-Length: {}\r\n\r\n", request_str.len());
+    stdin.write_all(header.as_bytes()).map_err(|e| e.to_string())?;
+    stdin.write_all(request_str.as_bytes()).map_err(|e| e.to_string())?;
+    stdin.flush().map_err(|e| e.to_string())?;
+
+    // Read response with Content-Length framing
+    let mut reader = std::io::BufReader::new(stdout);
+    let mut header_line = String::new();
+    let mut content_length: usize = 0;
+
+    // Read headers until empty line
+    loop {
+        header_line.clear();
+        reader.read_line(&mut header_line).map_err(|e| e.to_string())?;
+        let trimmed = header_line.trim();
+        if trimmed.is_empty() {
+            break;
+        }
+        if let Some(len_str) = trimmed.strip_prefix("Content-Length: ") {
+            content_length = len_str.parse().map_err(|e: std::num::ParseIntError| e.to_string())?;
+        }
+    }
+
+    if content_length == 0 {
+        return Err("No Content-Length in MCP response".to_string());
+    }
+
+    let mut body = vec![0u8; content_length];
+    std::io::Read::read_exact(&mut reader, &mut body).map_err(|e| e.to_string())?;
+
+    let response: serde_json::Value = serde_json::from_slice(&body).map_err(|e| e.to_string())?;
+
+    if let Some(error) = response.get("error") {
+        return Err(format!("MCP error: {}", error));
+    }
+
+    Ok(response.get("result").cloned().unwrap_or(serde_json::Value::Null))
+}
+
 #[tauri::command]
 pub fn mcp_connect(
-    _command: String,
-    _args: Vec<String>,
-    _env: std::collections::HashMap<String, String>,
+    command: String,
+    args: Vec<String>,
+    env: std::collections::HashMap<String, String>,
 ) -> Result<McpConnectResult, String> {
-    // Stub: full stdio transport implementation in v0.2
-    Err("MCP server connections will be available in v0.2. Configure MCP servers in .mcp.json for future use.".to_string())
+    let mut cmd = Command::new(&command);
+    cmd.args(&args)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null());
+
+    for (k, v) in &env {
+        cmd.env(k, v);
+    }
+
+    let mut child = cmd.spawn().map_err(|e| format!("Failed to spawn MCP server '{}': {}", command, e))?;
+
+    // Send initialize request
+    let _init_result = mcp_jsonrpc_request(&mut child, "initialize", serde_json::json!({
+        "protocolVersion": "2024-11-05",
+        "capabilities": {},
+        "clientInfo": { "name": "omnicoder", "version": "0.2.0" }
+    }))?;
+
+    // Send initialized notification (no response expected for notifications, but send anyway)
+    if let Some(stdin) = child.stdin.as_mut() {
+        let notif = serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": "notifications/initialized",
+        });
+        let notif_str = serde_json::to_string(&notif).unwrap_or_default();
+        let header = format!("Content-Length: {}\r\n\r\n", notif_str.len());
+        let _ = stdin.write_all(header.as_bytes());
+        let _ = stdin.write_all(notif_str.as_bytes());
+        let _ = stdin.flush();
+    }
+
+    // List tools
+    let tools_result = mcp_jsonrpc_request(&mut child, "tools/list", serde_json::json!({}))
+        .unwrap_or(serde_json::Value::Null);
+
+    let tools: Vec<McpToolInfo> = if let Some(tools_arr) = tools_result.get("tools").and_then(|t| t.as_array()) {
+        tools_arr.iter().filter_map(|t| {
+            Some(McpToolInfo {
+                name: t.get("name")?.as_str()?.to_string(),
+                description: t.get("description").and_then(|d| d.as_str()).unwrap_or("").to_string(),
+                input_schema: t.get("inputSchema").cloned().unwrap_or(serde_json::json!({"type": "object"})),
+            })
+        }).collect()
+    } else {
+        vec![]
+    };
+
+    // List resources
+    let resources_result = mcp_jsonrpc_request(&mut child, "resources/list", serde_json::json!({}))
+        .unwrap_or(serde_json::Value::Null);
+
+    let resources: Vec<McpResourceInfo> = if let Some(res_arr) = resources_result.get("resources").and_then(|r| r.as_array()) {
+        res_arr.iter().filter_map(|r| {
+            Some(McpResourceInfo {
+                uri: r.get("uri")?.as_str()?.to_string(),
+                name: r.get("name")?.as_str()?.to_string(),
+                description: r.get("description").and_then(|d| d.as_str()).map(|s| s.to_string()),
+                mime_type: r.get("mimeType").and_then(|m| m.as_str()).map(|s| s.to_string()),
+            })
+        }).collect()
+    } else {
+        vec![]
+    };
+
+    // Store the child process for later tool calls
+    let server_id = format!("mcp-{}", command.replace(['/', '\\', ' '], "-"));
+    MCP_PROCESSES.lock().map_err(|e| e.to_string())?.insert(server_id, child);
+
+    Ok(McpConnectResult { tools, resources })
 }
 
 #[tauri::command]
 pub fn mcp_call_tool(
-    _server_id: String,
-    _tool_name: String,
-    _input: serde_json::Value,
+    server_id: String,
+    tool_name: String,
+    input: serde_json::Value,
 ) -> Result<McpToolResult, String> {
-    Err("MCP tool calls will be available in v0.2.".to_string())
+    let mut processes = MCP_PROCESSES.lock().map_err(|e| e.to_string())?;
+    let child = processes.get_mut(&server_id)
+        .ok_or_else(|| format!("MCP server '{}' not connected", server_id))?;
+
+    let result = mcp_jsonrpc_request(child, "tools/call", serde_json::json!({
+        "name": tool_name,
+        "arguments": input,
+    }))?;
+
+    let content = if let Some(content_arr) = result.get("content").and_then(|c| c.as_array()) {
+        content_arr.iter()
+            .filter_map(|c| c.get("text").and_then(|t| t.as_str()))
+            .collect::<Vec<_>>()
+            .join("\n")
+    } else {
+        result.to_string()
+    };
+
+    let is_error = result.get("isError").and_then(|e| e.as_bool()).unwrap_or(false);
+
+    Ok(McpToolResult { content, is_error })
 }
 
 #[tauri::command]
 pub fn mcp_read_resource(
-    _server_id: String,
-    _uri: String,
+    server_id: String,
+    uri: String,
 ) -> Result<String, String> {
-    Err("MCP resource reading will be available in v0.2.".to_string())
+    let mut processes = MCP_PROCESSES.lock().map_err(|e| e.to_string())?;
+    let child = processes.get_mut(&server_id)
+        .ok_or_else(|| format!("MCP server '{}' not connected", server_id))?;
+
+    let result = mcp_jsonrpc_request(child, "resources/read", serde_json::json!({
+        "uri": uri,
+    }))?;
+
+    if let Some(contents) = result.get("contents").and_then(|c| c.as_array()) {
+        Ok(contents.iter()
+            .filter_map(|c| c.get("text").and_then(|t| t.as_str()))
+            .collect::<Vec<_>>()
+            .join("\n"))
+    } else {
+        Ok(result.to_string())
+    }
 }

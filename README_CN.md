@@ -3,7 +3,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/平台-Windows%20%7C%20macOS%20%7C%20Linux-blue" />
   <img src="https://img.shields.io/badge/许可证-MIT-green" />
-  <img src="https://img.shields.io/badge/版本-0.1.0-orange" />
+  <img src="https://img.shields.io/badge/版本-1.0.0-orange" />
 </p>
 
 > **一个界面，所有 AI，协同工作。**
@@ -136,8 +136,8 @@ npm run tauri build
 
 - [x] v0.1 — 核心引擎 + 单/多 Agent + 设置 UI + Windows EXE + 会话持久化 + 统计面板
 - [x] v0.2 — 跨平台：macOS (Keychain) + Linux (libsecret) + GitHub Actions CI/CD
-- [ ] v0.3 — CLI 模式、完整 MCP stdio 传输、预设市场
-- [ ] v1.0 — DAG 工作流编辑器、云端同步、VS Code 插件
+- [x] v1.0 — 完整 MCP stdio 传输、CLI 模式、配置导入导出
+- [ ] v2.0 — DAG 工作流编辑器、云端同步、VS Code 插件
 
 ## 许可证
 

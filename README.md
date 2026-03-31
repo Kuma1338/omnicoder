@@ -5,7 +5,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue" />
   <img src="https://img.shields.io/badge/license-MIT-green" />
-  <img src="https://img.shields.io/badge/version-0.1.0-orange" />
+  <img src="https://img.shields.io/badge/version-1.0.0-orange" />
 </p>
 
 **English** | [中文](./README_CN.md)
@@ -101,7 +101,19 @@ npm run tauri dev
 
 # Production build
 npm run tauri build
-# Output: src-tauri/target/release/bundle/nsis/omnicoder_*_x64-setup.exe
+```
+
+### Option 3: CLI Mode (No GUI)
+```bash
+# Run directly in terminal — no Tauri needed
+npm run cli -- --provider anthropic --model claude-sonnet-4-6 --api-key sk-ant-...
+
+# Or with OpenAI
+npm run cli -- --provider openai --model gpt-5.4 --api-key sk-...
+
+# Use environment variables
+export ANTHROPIC_API_KEY=sk-ant-...
+npm run cli
 ```
 
 ## Architecture
@@ -155,8 +167,8 @@ npm run tauri build
 
 - [x] v0.1 — Core engine + Single/Multi agent + Settings UI + Windows EXE + Session persistence + Stats
 - [x] v0.2 — Cross-platform: macOS (Keychain) + Linux (libsecret) + GitHub Actions CI/CD
-- [ ] v0.3 — CLI mode, full MCP stdio transport, preset marketplace
-- [ ] v1.0 — DAG workflow editor, cloud sync, VS Code extension
+- [x] v1.0 — Full MCP stdio transport, CLI mode, config import/export
+- [ ] v2.0 — DAG workflow editor, cloud sync, VS Code extension
 
 ## License
 
