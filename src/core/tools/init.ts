@@ -14,6 +14,7 @@ import { grepTool } from './grep';
 import { webFetchTool } from './web-fetch';
 import { webSearchTool } from './web-search';
 import { todoWriteTool } from './todo-write';
+import { askUserTool } from './ask-user';
 
 let initialized = false;
 
@@ -29,6 +30,7 @@ export function initializeTools(): void {
   globalToolRegistry.register(webFetchTool);
   globalToolRegistry.register(webSearchTool);
   globalToolRegistry.register(todoWriteTool);
+  globalToolRegistry.register(askUserTool);
 
   initialized = true;
 }

@@ -71,6 +71,18 @@ async function migrate(db: Database): Promise<void> {
       created_at INTEGER
     )
   `);
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS mcp_servers (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      transport TEXT NOT NULL,
+      command TEXT,
+      args TEXT,
+      env TEXT,
+      enabled INTEGER DEFAULT 1
+    )
+  `);
 }
 
 // --- Provider CRUD ---
