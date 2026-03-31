@@ -3,7 +3,7 @@
 **Multi-AI Coding Agent Orchestrator** — Combine Claude, GPT-4o, Gemini, Ollama, and more into a unified coding team.
 
 <p align="center">
-  <img src="https://img.shields.io/badge/platform-Windows-blue" />
+  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue" />
   <img src="https://img.shields.io/badge/license-MIT-green" />
   <img src="https://img.shields.io/badge/version-0.1.0-orange" />
 </p>
@@ -76,17 +76,23 @@ Compatible with Claude Code's `.mcp.json` format. Your existing MCP servers work
 
 ## Quick Start
 
-### Option 1: Download EXE (Recommended)
-1. Download `omnicoder_0.1.0_x64-setup.exe` from [Releases](../../releases)
-2. Run the installer
-3. Open OmniCoder
-4. Go to **Settings** → Add your API keys
-5. Start chatting!
+### Option 1: Download from Releases (Recommended)
+Download the latest installer for your platform from [Releases](../../releases):
+
+| Platform | File | Notes |
+|----------|------|-------|
+| **Windows** | `omnicoder_*_x64-setup.exe` | NSIS installer, double-click |
+| **macOS (ARM)** | `omnicoder_*_aarch64.dmg` | Apple Silicon (M1/M2/M3/M4) |
+| **macOS (Intel)** | `omnicoder_*_x64.dmg` | Intel Mac |
+| **Linux** | `omnicoder_*_amd64.AppImage` | Run directly, no install needed |
+| **Linux (deb)** | `omnicoder_*_amd64.deb` | Debian/Ubuntu |
+
+**No Node.js or Rust required.** Download → Install → Configure API keys → Start coding.
 
 ### Option 2: Build from Source
 ```bash
 # Prerequisites: Node.js 18+, Rust 1.70+
-git clone https://github.com/user/omnicoder.git
+git clone https://github.com/Kuma1338/omnicoder.git
 cd omnicoder
 npm install
 
@@ -116,8 +122,8 @@ npm run tauri build
 │  Provider   │  Agent    │  Tool     │  Config   │
 │  Registry   │  Orches-  │  System   │  Manager  │
 │             │  trator   │           │           │
-│ 5 Adapters  │ Director  │ 9 Core    │ SQLite    │
-│ 10 Presets  │ -Worker   │ Tools     │ DPAPI     │
+│ 5 Adapters  │ Director  │ 10 Core   │ SQLite    │
+│ 10 Presets  │ -Worker   │ Tools     │ Keychain  │
 │             │ Flow      │ + MCP     │           │
 └─────────────┴───────────┴───────────┴───────────┘
 ```
@@ -130,7 +136,7 @@ npm run tauri build
 | Frontend | **React + Tailwind CSS** | Fast UI development |
 | Backend | **TypeScript** core engine | Shared types, async streaming |
 | Database | **SQLite** (Tauri plugin) | Embedded, zero-config |
-| Security | **Windows DPAPI** | OS-level API key encryption |
+| Security | **DPAPI / Keychain / libsecret** | OS-native API key encryption per platform |
 
 ## Comparison
 
@@ -147,10 +153,9 @@ npm run tauri build
 
 ## Roadmap
 
-- [x] v0.1 — Core engine + Single agent + Multi-agent + Settings UI + Windows EXE
-- [ ] v0.2 — Session persistence, cost tracking dashboard, CLI mode
-- [ ] v0.3 — macOS support (.dmg)
-- [ ] v0.4 — Linux support (.AppImage)
+- [x] v0.1 — Core engine + Single/Multi agent + Settings UI + Windows EXE + Session persistence + Stats
+- [x] v0.2 — Cross-platform: macOS (Keychain) + Linux (libsecret) + GitHub Actions CI/CD
+- [ ] v0.3 — CLI mode, full MCP stdio transport, preset marketplace
 - [ ] v1.0 — DAG workflow editor, cloud sync, VS Code extension
 
 ## License

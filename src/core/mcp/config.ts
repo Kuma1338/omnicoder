@@ -55,7 +55,8 @@ export async function loadMcpConfig(workingDirectory: string): Promise<McpServer
 
     // Try user-level ~/.mcp.json
     try {
-      const homeConfig = await readTextFile(`${getHomeDir()}/.mcp.json`);
+      const home = await getHomeDir();
+      const homeConfig = await readTextFile(`${home}/.mcp.json`);
       const homeServers = parseMcpJson(homeConfig);
       // Avoid duplicates
       for (const server of homeServers) {
@@ -73,15 +74,18 @@ export async function loadMcpConfig(workingDirectory: string): Promise<McpServer
   return configs;
 }
 
-function getHomeDir(): string {
-  // In Tauri webview, use a fixed path; actual path resolved by Tauri API at runtime
+async function getHomeDir(): Promise<string> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const proc = globalThis as any;
-    if (proc.process?.env?.USERPROFILE) return proc.process.env.USERPROFILE;
-    if (proc.process?.env?.HOME) return proc.process.env.HOME;
+    const { homeDir } = await import('@tauri-apps/api/path');
+    return await homeDir();
   } catch {
-    // no process available
+    // Fallback for non-Tauri environments
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const proc = globalThis as any;
+      if (proc.process?.env?.USERPROFILE) return proc.process.env.USERPROFILE;
+      if (proc.process?.env?.HOME) return proc.process.env.HOME;
+    } catch { /* */ }
+    return '';
   }
-  return 'C:/Users/Default';
 }

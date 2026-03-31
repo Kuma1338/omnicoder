@@ -2,7 +2,7 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "omnicoder",
   "version": "0.1.0",
-  "identifier": "com.administrator.omnicoder",
+  "identifier": "com.omnicoder.app",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -37,6 +37,18 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "macOS": {
+      "minimumSystemVersion": "10.15",
+      "frameworks": []
+    },
+    "linux": {
+      "deb": {
+        "depends": ["libwebkit2gtk-4.1-0", "libsecret-1-0"]
+      },
+      "appimage": {
+        "bundleMediaFramework": false
+      }
+    }
   }
 }

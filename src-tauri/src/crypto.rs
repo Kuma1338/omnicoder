@@ -1,5 +1,7 @@
-/// API key encryption/decryption using Windows DPAPI
-/// Falls back to base64 encoding on non-Windows (for dev purposes)
+/// Cross-platform API key encryption/decryption
+/// - Windows: DPAPI (CryptProtectData/CryptUnprotectData)
+/// - macOS: Keychain via keyring crate
+/// - Linux: libsecret (GNOME Keyring) via keyring crate
 
 #[cfg(target_os = "windows")]
 use windows_sys::Win32::Security::Cryptography::{
@@ -17,8 +19,7 @@ pub fn encrypt_secret(plaintext: String) -> Result<String, String> {
     }
     #[cfg(not(target_os = "windows"))]
     {
-        use base64::{Engine as _, engine::general_purpose};
-        Ok(general_purpose::STANDARD.encode(plaintext.as_bytes()))
+        encrypt_keyring(&plaintext)
     }
 }
 
@@ -30,13 +31,39 @@ pub fn decrypt_secret(ciphertext: String) -> Result<String, String> {
     }
     #[cfg(not(target_os = "windows"))]
     {
-        use base64::{Engine as _, engine::general_purpose};
-        let bytes = general_purpose::STANDARD
-            .decode(ciphertext.as_bytes())
-            .map_err(|e| e.to_string())?;
-        String::from_utf8(bytes).map_err(|e| e.to_string())
+        decrypt_keyring(&ciphertext)
     }
 }
+
+// --- macOS / Linux: keyring-based storage ---
+
+#[cfg(not(target_os = "windows"))]
+fn encrypt_keyring(plaintext: &str) -> Result<String, String> {
+    // Store the secret in the OS keychain under a unique key
+    // The "ciphertext" returned is just the key name used to retrieve it
+    let key = format!("omnicoder_key_{}", hash_simple(plaintext));
+    let entry = keyring::Entry::new("omnicoder", &key).map_err(|e| e.to_string())?;
+    entry.set_password(plaintext).map_err(|e| e.to_string())?;
+    Ok(key)
+}
+
+#[cfg(not(target_os = "windows"))]
+fn decrypt_keyring(key: &str) -> Result<String, String> {
+    let entry = keyring::Entry::new("omnicoder", key).map_err(|e| e.to_string())?;
+    entry.get_password().map_err(|e| e.to_string())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn hash_simple(input: &str) -> String {
+    // Simple deterministic hash for key naming (not crypto)
+    let mut hash: u64 = 5381;
+    for byte in input.bytes() {
+        hash = hash.wrapping_mul(33).wrapping_add(byte as u64);
+    }
+    format!("{:016x}", hash)
+}
+
+// --- Windows: DPAPI ---
 
 #[cfg(target_os = "windows")]
 fn encrypt_windows(plaintext: &str) -> Result<String, String> {
