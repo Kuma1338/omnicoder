@@ -92,30 +92,119 @@ function getFileColor(name: string): string {
 
 // ---- Code Viewer ----
 
-function CodeViewer({ content, filePath }: { content: string; filePath: string }) {
-  const lines = content.split("\n");
+function CodeEditor({
+  content,
+  filePath,
+  onSave,
+}: {
+  content: string;
+  filePath: string;
+  onSave: (newContent: string) => void;
+}) {
+  const [editContent, setEditContent] = useState(content);
+  const [modified, setModified] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const lineCountRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setEditContent(content);
+    setModified(false);
+  }, [content, filePath]);
+
+  // Sync scroll between line numbers and textarea
+  function handleScroll() {
+    if (textareaRef.current && lineCountRef.current) {
+      lineCountRef.current.scrollTop = textareaRef.current.scrollTop;
+    }
+  }
+
+  const lineCount = editContent.split("\n").length;
+
   return (
-    <div className="flex-1 overflow-auto font-mono text-xs" style={{ background: "var(--bg-primary)" }}>
-      <div className="sticky top-0 px-4 py-1.5 text-xs" style={{ background: "var(--bg-secondary)", borderBottom: "1px solid var(--border)", color: "var(--text-muted)" }}>
-        {filePath}
+    <div className="flex-1 flex flex-col overflow-hidden" style={{ background: "var(--bg-primary)" }}>
+      {/* File header */}
+      <div
+        className="flex items-center justify-between px-4 py-1.5 text-xs shrink-0"
+        style={{ background: "var(--bg-secondary)", borderBottom: "1px solid var(--border)" }}
+      >
+        <span style={{ color: modified ? "var(--warning)" : "var(--text-muted)" }}>
+          {filePath} {modified ? " (未保存)" : ""}
+        </span>
+        {modified && (
+          <button
+            onClick={() => {
+              onSave(editContent);
+              setModified(false);
+            }}
+            className="px-2 py-0.5 rounded text-xs font-medium"
+            style={{ background: "var(--accent)", color: "#fff" }}
+          >
+            Ctrl+S 保存
+          </button>
+        )}
       </div>
-      <table className="w-full border-collapse">
-        <tbody>
-          {lines.map((line, i) => (
-            <tr key={i} className="hover:bg-[var(--bg-hover)]">
-              <td
-                className="text-right px-3 py-0 select-none"
-                style={{ color: "var(--text-muted)", width: 50, minWidth: 50, borderRight: "1px solid var(--border)" }}
-              >
-                {i + 1}
-              </td>
-              <td className="px-3 py-0 whitespace-pre" style={{ color: "var(--text-primary)" }}>
-                {line || " "}
-              </td>
-            </tr>
+
+      {/* Editor area */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Line numbers */}
+        <div
+          ref={lineCountRef}
+          className="overflow-hidden shrink-0 text-right font-mono text-xs py-1 select-none"
+          style={{
+            width: 50,
+            color: "var(--text-muted)",
+            background: "var(--bg-secondary)",
+            borderRight: "1px solid var(--border)",
+            lineHeight: "1.5em",
+          }}
+        >
+          {Array.from({ length: lineCount }, (_, i) => (
+            <div key={i} className="px-2">{i + 1}</div>
           ))}
-        </tbody>
-      </table>
+        </div>
+
+        {/* Textarea editor */}
+        <textarea
+          ref={textareaRef}
+          value={editContent}
+          onChange={(e) => {
+            setEditContent(e.target.value);
+            setModified(true);
+          }}
+          onScroll={handleScroll}
+          onKeyDown={(e) => {
+            // Ctrl+S to save
+            if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+              e.preventDefault();
+              onSave(editContent);
+              setModified(false);
+            }
+            // Tab inserts spaces
+            if (e.key === "Tab") {
+              e.preventDefault();
+              const start = e.currentTarget.selectionStart;
+              const end = e.currentTarget.selectionEnd;
+              const newVal = editContent.substring(0, start) + "  " + editContent.substring(end);
+              setEditContent(newVal);
+              setModified(true);
+              requestAnimationFrame(() => {
+                if (textareaRef.current) {
+                  textareaRef.current.selectionStart = textareaRef.current.selectionEnd = start + 2;
+                }
+              });
+            }
+          }}
+          spellCheck={false}
+          className="flex-1 resize-none outline-none font-mono text-xs p-1 overflow-auto"
+          style={{
+            background: "transparent",
+            color: "var(--text-primary)",
+            lineHeight: "1.5em",
+            tabSize: 2,
+            caretColor: "var(--accent)",
+          }}
+        />
+      </div>
     </div>
   );
 }
@@ -340,7 +429,20 @@ export default function CodePage() {
                 加载中...
               </div>
             ) : (
-              <CodeViewer content={fileContent} filePath={selectedFile} />
+              <CodeEditor
+                content={fileContent}
+                filePath={selectedFile}
+                onSave={async (newContent) => {
+                  try {
+                    const { writeTextFile } = await import("@tauri-apps/plugin-fs");
+                    await writeTextFile(selectedFile, newContent);
+                    setFileContent(newContent);
+                    setTermOutput((prev) => [...prev, `[saved] ${selectedFile}`]);
+                  } catch (err) {
+                    setTermOutput((prev) => [...prev, `[error] Save failed: ${String(err)}`]);
+                  }
+                }}
+              />
             )
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center gap-3" style={{ color: "var(--text-muted)" }}>
