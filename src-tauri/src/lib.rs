@@ -13,6 +13,7 @@ pub fn run() {
             crypto::decrypt_secret,
             commands::run_command,
             commands::glob_files,
+            commands::list_directory,
             commands::grep_files,
             commands::mcp_connect,
             commands::mcp_call_tool,

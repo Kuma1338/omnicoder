@@ -198,26 +198,13 @@ export default function CodePage() {
 
   async function loadDirectory(dirPath: string): Promise<FileEntry[]> {
     try {
-      const result = await invoke<string[]>("glob_files", { pattern: "*", path: dirPath });
-      const entries: FileEntry[] = [];
-      const seen = new Set<string>();
-
-      for (const fullPath of result) {
-        const normalized = fullPath.replace(/\\/g, "/");
-        const name = normalized.split("/").pop() ?? normalized;
-        if (seen.has(name) || name.startsWith(".")) continue;
-        seen.add(name);
-
-        // Determine if directory by checking for common extensions
-        const isDir = !name.includes(".");
-        entries.push({ name, path: normalized, isDir, children: isDir ? [] : undefined });
-      }
-
-      entries.sort((a, b) => {
-        if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
-        return a.name.localeCompare(b.name);
-      });
-
+      const result = await invoke<Array<{ name: string; path: string; is_dir: boolean; size: number }>>("list_directory", { path: dirPath });
+      const entries: FileEntry[] = result.map((e) => ({
+        name: e.name,
+        path: e.path,
+        isDir: e.is_dir,
+        children: e.is_dir ? [] : undefined,
+      }));
       setFiles(entries);
       return entries;
     } catch {
@@ -231,25 +218,15 @@ export default function CodePage() {
       newExpanded.delete(dirPath);
     } else {
       newExpanded.add(dirPath);
-      // Load children
+      // Load children via list_directory (correct is_dir detection)
       try {
-        const result = await invoke<string[]>("glob_files", { pattern: "*", path: dirPath });
-        const children: FileEntry[] = [];
-        const seen = new Set<string>();
-        for (const fullPath of result) {
-          const normalized = fullPath.replace(/\\/g, "/");
-          const name = normalized.split("/").pop() ?? normalized;
-          if (seen.has(name) || name.startsWith(".")) continue;
-          seen.add(name);
-          const isDir = !name.includes(".");
-          children.push({ name, path: normalized, isDir, children: isDir ? [] : undefined });
-        }
-        children.sort((a, b) => {
-          if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
-          return a.name.localeCompare(b.name);
-        });
-
-        // Update file tree
+        const result = await invoke<Array<{ name: string; path: string; is_dir: boolean; size: number }>>("list_directory", { path: dirPath });
+        const children: FileEntry[] = result.map((e) => ({
+          name: e.name,
+          path: e.path,
+          isDir: e.is_dir,
+          children: e.is_dir ? [] : undefined,
+        }));
         setFiles((prev) => updateChildren(prev, dirPath, children));
       } catch { /* ignore */ }
     }

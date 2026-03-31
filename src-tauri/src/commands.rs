@@ -96,6 +96,58 @@ pub fn glob_files(pattern: String, path: String) -> Result<Vec<String>, String> 
     Ok(matches.into_iter().map(|(p, _)| p).collect())
 }
 
+// --- Directory listing for Code page ---
+
+#[derive(Serialize)]
+pub struct DirEntry {
+    pub name: String,
+    pub path: String,
+    pub is_dir: bool,
+    pub size: u64,
+}
+
+#[tauri::command]
+pub fn list_directory(path: String) -> Result<Vec<DirEntry>, String> {
+    let dir = std::path::Path::new(&path);
+    if !dir.is_dir() {
+        return Err(format!("Not a directory: {}", path));
+    }
+
+    let mut entries: Vec<DirEntry> = Vec::new();
+    let read_dir = std::fs::read_dir(dir).map_err(|e| e.to_string())?;
+
+    for entry in read_dir {
+        let entry = match entry {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        let name = entry.file_name().to_string_lossy().into_owned();
+        // Skip hidden files/directories
+        if name.starts_with('.') {
+            continue;
+        }
+        let metadata = entry.metadata().unwrap_or_else(|_| std::fs::metadata(entry.path()).unwrap());
+        let full_path = entry.path().to_string_lossy().into_owned().replace('\\', "/");
+
+        entries.push(DirEntry {
+            name,
+            path: full_path,
+            is_dir: metadata.is_dir(),
+            size: metadata.len(),
+        });
+    }
+
+    // Sort: directories first, then alphabetical
+    entries.sort_by(|a, b| {
+        if a.is_dir != b.is_dir {
+            return if a.is_dir { std::cmp::Ordering::Less } else { std::cmp::Ordering::Greater };
+        }
+        a.name.to_lowercase().cmp(&b.name.to_lowercase())
+    });
+
+    Ok(entries)
+}
+
 #[tauri::command]
 pub fn grep_files(
     pattern: String,
